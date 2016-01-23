@@ -41,6 +41,8 @@ set_kernel(int did,
     clCreateKernel(prop->program, (const char *)"enable_pooling", NULL);
   prop->feature =
     clCreateKernel(prop->program, (const char *)"feature_rfcn",   NULL);
+  prop->cls     =
+    clCreateKernel(prop->program, (const char *)"class_rfcn",     NULL);
 
   return status;
 }

@@ -26,6 +26,8 @@ enable_pooling(size_t          width,
     }
   }
 
+  //printf("%lux%lu\t%dx%dx%d\n", width, height, idx_x, idx_y, idx_z);
+
   dest[dest_offset + (idx_y * (width / 2) + idx_x)] = val / 4.0;
 
 }

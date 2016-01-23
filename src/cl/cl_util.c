@@ -9,6 +9,7 @@ kernel_code_destroy(kernel_code *kcode);
 
 void
 cl_prop_destroy(cl_prop *prop) {
+  clReleaseKernel(prop->cls);
   clReleaseKernel(prop->feature);
   clReleaseKernel(prop->pooling);
   clReleaseKernel(prop->gabor);
