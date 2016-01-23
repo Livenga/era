@@ -68,4 +68,16 @@ extern void
 gprint(size_t   num,
        genotype gtype);
 
+
+
+typedef struct _cls_vector {
+  double x, y, z;
+} cls_vector;
+
+/* src/vector.c */
+extern void
+save_vector(size_t num,
+            const size_t     *num_datas,
+            const cls_vector **vector);
+
 #endif

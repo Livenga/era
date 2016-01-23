@@ -27,6 +27,7 @@ typedef struct _cl_properties {
   cl_kernel        gabor;
   cl_kernel        pooling;
   cl_kernel        feature;
+  cl_kernel        cls;
 } cl_prop;
 
 
