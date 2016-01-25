@@ -30,10 +30,11 @@ ginit(genotype gtype) {
   size_t position;
 
 
-  row    = InternalSize(gtype[0]) + ExternalSize(gtype[0]) + HideSize(gtype[0]);
-  column = HideSize(gtype[0]) + OutputSize(gtype[0]);
+  row    = ParameterSize(gtype[0]) + InternalSize(gtype[0])
+    + ExternalSize(gtype[0]) + HideSize(gtype[0]);
+  column = HideSize(gtype[0])      + OutputSize(gtype[0]);
 
-  for(i = 0; i < ParameterSize(gtype[0]) + row; i++) {
+  for(i = 0; i < row; i++) {
     switch(i) {
       case 0:  val = SIGMOID + 1; break;
       case 1:  val = gain_size;   break;
@@ -45,7 +46,8 @@ ginit(genotype gtype) {
     gtype[i + 1] = 0x0;
     for(j = 0; j < column; j++) {
       position = (column - j - 1) * 4;
-      gtype[i + 1] += (unsigned)((rand() % val) << position);
+      gtype[i + 1] += ((genotype_t)(rand() % val) << position);
     }
   }
+
 }

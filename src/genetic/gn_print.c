@@ -28,7 +28,7 @@ gprint(size_t   num,
     printf("    H%2d    |", i);
   for(i = 0; i < OutputSize(gtype[0]); i++)
     printf("    O%2d    |", i);
-  printf(" 0x%010llX\n", gtype[0]);
+  printf(" 0x%010llX\n", (genotype_t)gtype[0]);
   draw_line(column);
 
   printf("|  Function |");
@@ -36,28 +36,28 @@ gprint(size_t   num,
     position = (column - i - 1) * 4;
     printf(" %9s |", function_name((gtype[1] >> position) & 0x0F));
   }
-  printf(" 0x%010llX\n", gtype[1]);
+  printf(" 0x%010llX\n", (genotype_t)gtype[1]);
 
   printf("| Parameter |");
   for(i = 0; i < column; i++) {
     position = (column - i - 1) * 4;
     printf("   %+.2f   |", gain[(gtype[2] >> position) & 0x0F]);
   }
-  printf(" 0x%010llX\n", gtype[2]);
+  printf(" 0x%010llX\n", (genotype_t)gtype[2]);
 
   printf("|   Speed   |");
   for(i = 0; i < column; i++) {
     position = (column - i - 1) * 4;
     printf("    %3d    |", spd[(gtype[3] >> position) & 0x0F]);
   }
-  printf(" 0x%010llX\n", gtype[3]);
+  printf(" 0x%010llX\n", (genotype_t)gtype[3]);
 
   printf("| Threshold |");
   for(i = 0; i < column; i++) {
     position = (column - i - 1) * 4;
     printf("   %+.2f   |", thr[(gtype[4] >> position) & 0x0F]);
   }
-  printf(" 0x%010llX\n", gtype[4]);
+  printf(" 0x%010llX\n", (genotype_t)gtype[4]);
   draw_line(column);
   
   offset = ParameterSize(gtype[0]) + 1;
@@ -68,7 +68,7 @@ gprint(size_t   num,
       position = (column - j - 1) * 4;
       printf("   %+.2f   |", w[(gtype[offset + i] >> position) & 0x0F]);
     }
-    printf(" 0x%010llX\n", gtype[offset + i]);
+    printf(" 0x%010llX\n", (genotype_t)gtype[offset + i]);
   }
   draw_line(column);
 
@@ -82,7 +82,7 @@ gprint(size_t   num,
         position = (column - j - 1) * 4;
         printf("   %+.2f   |", w[(gtype[offset + i] >> position) & 0x0F]);
       }
-      printf(" 0x%010llX\n", gtype[offset + i]);
+      printf(" 0x%010llX\n", (genotype_t)gtype[offset + i]);
     }
     draw_line(column);
   }
@@ -95,7 +95,7 @@ gprint(size_t   num,
       position = (column - j - 1) * 4;
       printf("   %+.2f   |", w[(gtype[offset + i] >> position) & 0x0F]);
     }
-    printf(" 0x%010llX\n", gtype[offset + i]);
+    printf(" 0x%010llX\n", (genotype_t)gtype[offset + i]);
   }
   draw_line(column);
 

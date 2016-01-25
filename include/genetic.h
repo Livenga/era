@@ -14,7 +14,7 @@ typedef genotype_t * genotype;
 #define PARAMETER_SIZE    (4)
 #define INTERNAL_SIZE     (6)
 #define EXTERNAL_SIZE     (1)
-#define DEFAULT_HIDE_SIZE (6)
+#define DEFAULT_HIDE_SIZE (8)
 #define MAX_HIDE_SIZE     (sizeof(genotype_t) * 8 - DEFAULT_HIDE_SIZE)
 #define EXTENDED_SIZE     (MAX_HIDE_SIZE - DEFAULT_HIDE_SIZE)
 
@@ -29,6 +29,10 @@ typedef genotype_t * genotype;
 #define ExternalSize(m)   ((m >>  8) & 0x0F)
 #define HideSize(m)       ((m >>  4) & 0x0F)
 #define OutputSize(m)     ((m >>  0) & 0x0F)
+
+
+#define RFCN_SIGN "RFCN"
+
 
 /* 関数番号 */
 enum {
@@ -57,10 +61,34 @@ extern void
 ginit(genotype gtype);
 
 
+/* src/genetic/gn_crossover.c (交叉) */
+extern void
+gcrossover(size_t population,
+           genotype src0,
+           genotype src1,
+           genotype *dest);
+
+
+/* src/genetic/gn_selection.c */
+extern int
+slt_best_ft(size_t population,
+            const double *ft);
+
+
 /* src/genetic/gn_util.c */
+extern void
+gcopy(genotype dest,
+      const genotype src);
 extern void
 genotype_destroy(size_t   population,
                  genotype *gtype);
+
+
+/* src/genetic/gn_save.c */
+extern int
+save_ngtype(size_t population,
+            const  int type, /* 0:feature, 1:class */
+            const  genotype *gtype);
 
 
 /* src/genetic/gn_print.c */
@@ -75,6 +103,14 @@ typedef struct _cls_vector {
 } cls_vector;
 
 /* src/vector.c */
+extern void
+center_vector(const size_t     *num_datas,
+              cls_vector       *center_v,
+              const cls_vector **vectors);
+extern double
+euclid_cchar2center(size_t num,
+                    const cls_vector *char_pt,
+                    const cls_vector center_pt);
 extern void
 save_vector(size_t num,
             const size_t     *num_datas,

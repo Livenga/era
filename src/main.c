@@ -30,6 +30,7 @@ main(int argc,
 
   size_t   *num_datas;
 
+
   /* OpenCL Device 設定 */
   get_kcode_path("./src/kernel", &prop.kcode);
   read_kcode(&prop.kcode);
@@ -45,7 +46,7 @@ main(int argc,
   srand((unsigned)time(NULL));
   signal(SIGINT, quit_signal);
 
-
+  
   /* 学習データ数の取得 */
   num_datas = numof_training_data("./training_datas");
   /* Gabor 特徴量層の領域確保 */
@@ -99,13 +100,13 @@ main(int argc,
       n_canvas_destroy(&ncv_chr[cnt_data]);
     }
 
-    printf("[Enable feature extraction alphabet] '%c'\t%d Datas\t[%sDone%s]\n",
+    printf("[Gabor 特徴抽出] '%c'\t%d Datas\t[%sDone%s]\n",
         'A' + cnt_chr, cnt_data, GRN_STR, CLR_STR);
     fflush(stdout);
   } /* for(cnt_chr) */
 
 
-  printf("\n\n\033[1;5;37m *** Start evolution calculate *** \033[0;39m\n\n");
+  printf("\n\n\033[1;5;37m *** 進化計算の実行 *** \033[0;39m\n\n");
   evolution(prop, num_datas, (const n_canvas **)l_pooling);
 
 
@@ -136,6 +137,7 @@ main(int argc,
 void
 quit_signal(int sig) {
   f_quit = 1;
-  fprintf(stderr, "%s*** Forced Termination ***%s\n", ERR_STR, CLR_STR);
+  //fprintf(stderr, "%s*** Forced Termination ***%s\n", ERR_STR, CLR_STR);
+  fprintf(stderr, "%s*** 強制終了 ***%s\n", ERR_STR, CLR_STR);
   signal(SIGINT, SIG_DFL);
 }

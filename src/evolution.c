@@ -13,6 +13,9 @@ void
 evolution(cl_prop        prop,
           const size_t   *num_datas,
           const n_canvas **ncv_data) {
+  const double threshold = 0.10000;
+  extern int f_quit;
+
   // Gabor 特徴量画像サイズ
   const size_t nsize =
     CanvasSize(ncv_data[0][0].width, ncv_data[0][0].height);
@@ -32,8 +35,11 @@ evolution(cl_prop        prop,
 
   /* 進化計算用変数 */
   int        cnt_generation;
-  genotype   pr_gtype[POPULATION_SIZE], pr_class[POPULATION_SIZE];
-  cls_vector *vector[A2Z];
+  double     center_euclid, ccenter_euclid;
+  cls_vector *vector[A2Z], center_v[A2Z], ccenter_v;
+  genotype   pr_gtype[POPULATION_SIZE], pr_class[POPULATION_SIZE]; // 個体集合
+  genotype   ch_gtype[CHILDREN_SIZE],   ch_class[CHILDREN_SIZE];   // 子個体集合
+  double     pr_fitness[POPULATION_SIZE], ch_fitness[CHILDREN_SIZE]; // 適応度
 
   /* OpenCL 用変数 */
   size_t     feature_size[3], pooling_size[3], class_size;
@@ -42,6 +48,7 @@ evolution(cl_prop        prop,
   cl_class   cls;
   double     *f_in_data, *f_out_data, *f_data;
   double     *p_data;
+
 
   /* 入出力結合画像領域の確保 */
   f_in_data  =
@@ -78,6 +85,10 @@ evolution(cl_prop        prop,
 
   class_size      = num_datas[0];
 
+  /* 初期化 */
+  memset((void *)pr_fitness, '\0', sizeof(pr_fitness));
+  memset((void *)ch_fitness, '\0', sizeof(ch_fitness));
+
 
   for(i = 0; i < POPULATION_SIZE; i++) {
     pr_gtype[i] = galloc(INTERNAL_SIZE, 0, 1);
@@ -88,7 +99,6 @@ evolution(cl_prop        prop,
     for(cnt_chr = 0; cnt_chr < A2Z; cnt_chr++) {
       // データの結合
       cat_double(num_datas[cnt_chr] * NUMBER_OF_GABOR, ncv_data[cnt_chr], f_in_data);
-
       // 共通接続荷重による RFCN の局所受容野
       clEnqueueWriteBuffer(prop.queue, feature.cl_gtype, CL_TRUE,
           0, sizeof(genotype_t) * MAX_GTYPE_SIZE, (const void *)pr_gtype[i],
@@ -136,17 +146,242 @@ evolution(cl_prop        prop,
           0, sizeof(cls_vector) * num_datas[cnt_chr],
           (void *)vector[cnt_chr], 0, NULL, NULL);
     } /* for(cnt_chr) */
-    save_vector(i, num_datas, (const cls_vector **)vector);
+
+    /* 各文字の中央ベクトルの計算 */
+    center_vector(num_datas, center_v, (const cls_vector **)vector);
+
+    memset((void *)&ccenter_v, '\0', sizeof(ccenter_v));
+    for(cnt_chr = 0; cnt_chr < A2Z; cnt_chr++) {
+      ccenter_v.x += center_v[cnt_chr].x;
+      ccenter_v.y += center_v[cnt_chr].y;
+      ccenter_v.z += center_v[cnt_chr].z;
+
+      center_euclid = euclid_cchar2center(num_datas[cnt_chr],
+          vector[cnt_chr], center_v[cnt_chr]);
+
+      pr_fitness[i] += (center_euclid < threshold) ? 5.0 : center_euclid;
+    }
+    ccenter_v.x /= A2Z;
+    ccenter_v.y /= A2Z;
+    ccenter_v.z /= A2Z;
+    ccenter_euclid = euclid_cchar2center(A2Z,
+        (const cls_vector *)center_v, (const cls_vector)ccenter_v);
+
+    pr_fitness[i] /= exp(ccenter_euclid);
+    //pr_fitness[i] /= ((double)A2Z - ccenter_euclid);
+    //pr_fitness[i] /= sqrt((double)A2Z * num_datas[0]) - ccenter_euclid;
+    //if(pr_fitness[i] < threshold) pr_fitness[i] = 10.0;
+  } /* for(i) */
+  
+  //save_ngtype(POPULATION_SIZE, 0, pr_gtype);
+  //save_ngtype(POPULATION_SIZE, 1, pr_class);
+
+  /* 子個体集合の割当 */
+  for(i = 0; i < CHILDREN_SIZE; i++) {
+    ch_gtype[i] = galloc(INTERNAL_SIZE, 0, 1);
+    ch_class[i] = galloc(INTERNAL_SIZE, 0, 3);
   }
 
 
+  // Minimal Generation Gap
+  int slt_rand[2];
+  int slt_best, slt_roulette;
+  // 確認用
+  int num_best;
 
   cnt_generation = 0;
   do {
+    /* ランダムで交叉する個体を決定 */
+    slt_rand[0] = rand() % POPULATION_SIZE;
+    slt_rand[1] = rand() % POPULATION_SIZE;
+    while(slt_rand[0] == slt_rand[1])
+      slt_rand[1] = rand() % POPULATION_SIZE;
+
+
+    /* 交叉 */
+    gcrossover(CHILDREN_SIZE,
+        pr_gtype[slt_rand[0]], pr_gtype[slt_rand[1]],
+        ch_gtype);
+    gcrossover(CHILDREN_SIZE,
+        pr_class[slt_rand[0]], pr_class[slt_rand[1]],
+        ch_class);
+
+    
+    memset((void *)ch_fitness, '\0', sizeof(ch_fitness));
+    for(i = 0; i < CHILDREN_SIZE; i++) {
+      for(cnt_chr = 0; cnt_chr < A2Z; cnt_chr++) {
+        // データの結合
+        cat_double(num_datas[cnt_chr] * NUMBER_OF_GABOR, ncv_data[cnt_chr], f_in_data);
+        // 共通接続荷重による RFCN の局所受容野
+        clEnqueueWriteBuffer(prop.queue, feature.cl_gtype, CL_TRUE,
+            0, sizeof(genotype_t) * MAX_GTYPE_SIZE, (const void *)ch_gtype[i],
+            0, NULL, NULL);
+        clEnqueueWriteBuffer(prop.queue, feature.cl_ncv_data, CL_TRUE,
+            0, sizeof(double) * nsize * num_datas[cnt_chr] * NUMBER_OF_GABOR,
+            (const void *)f_in_data, 0, NULL, NULL);
+        clEnqueueNDRangeKernel(prop.queue, prop.feature, 3,
+            NULL, (const size_t *)feature_size, NULL,
+            0, NULL, NULL);
+        // 出力の読み込み
+        clEnqueueReadBuffer(prop.queue, feature.cl_dest, CL_TRUE,
+            0, sizeof(double) * dsize * num_datas[cnt_chr] * NUMBER_OF_GABOR,
+            (void *)f_out_data, 0, NULL, NULL);
+
+        // 出力データの加算 */
+        bzero((void *)f_data, sizeof(double) * dsize * num_datas[0]);
+        sum_data(num_datas[cnt_chr],
+            feature_width, feature_height,
+            f_out_data, f_data);
+
+
+        // 加算出力データのプーリング
+        clEnqueueWriteBuffer(prop.queue, pooling.cl_ncv, CL_TRUE,
+            0, sizeof(double) * dsize * num_datas[cnt_chr],
+            (const void *)f_data, 0, NULL, NULL);
+        clEnqueueNDRangeKernel(prop.queue, prop.pooling, 3,
+            NULL, (const size_t *)pooling_size, NULL,
+            0, NULL, NULL);
+        clEnqueueReadBuffer(prop.queue, pooling.cl_dest, CL_TRUE,
+            0, sizeof(double) * psize * num_datas[cnt_chr],
+            (void *)p_data, 0, NULL, NULL);
+
+        // 三次元空間写像 (分類部)
+        clEnqueueWriteBuffer(prop.queue, cls.cl_gtype,    CL_TRUE,
+            0, sizeof(genotype_t) * MAX_GTYPE_SIZE, (const void *)ch_class[i],
+            0, NULL, NULL);
+        clEnqueueWriteBuffer(prop.queue, cls.cl_ncv_data, CL_TRUE,
+            0, sizeof(double) * psize * num_datas[cnt_chr],
+            (const void *)p_data, 0, NULL, NULL);
+        clEnqueueNDRangeKernel(prop.queue, prop.cls, 1,
+            NULL, (const size_t *)&class_size, NULL,
+            0, NULL, NULL);
+        clEnqueueReadBuffer(prop.queue, cls.cl_vector, CL_TRUE,
+            0, sizeof(cls_vector) * num_datas[cnt_chr],
+            (void *)vector[cnt_chr], 0, NULL, NULL);
+      } /* for(cnt_chr) */
+
+      /* 各文字の中央ベクトルの計算 */
+      center_vector(num_datas, center_v, (const cls_vector **)vector);
+
+      memset((void *)&ccenter_v, '\0', sizeof(ccenter_v));
+      for(cnt_chr = 0; cnt_chr < A2Z; cnt_chr++) {
+        ccenter_v.x += center_v[cnt_chr].x;
+        ccenter_v.y += center_v[cnt_chr].y;
+        ccenter_v.z += center_v[cnt_chr].z;
+
+        center_euclid = euclid_cchar2center(num_datas[cnt_chr],
+            vector[cnt_chr], center_v[cnt_chr]);
+
+        ch_fitness[i] += (center_euclid < threshold) ? 5.0 : center_euclid;
+      }
+      ccenter_v.x /= A2Z;
+      ccenter_v.y /= A2Z;
+      ccenter_v.z /= A2Z;
+
+      ccenter_euclid = euclid_cchar2center(A2Z,
+          (const cls_vector *)center_v, (const cls_vector)ccenter_v);
+
+      ch_fitness[i] /= exp(ccenter_euclid);
+      //ch_fitness[i] /= ((double)A2Z - ccenter_euclid);
+      //ch_fitness[i] /= sqrt((double)A2Z) - ccenter_euclid;
+      //ch_fitness[i] /= (sqrt((double)A2Z) * num_datas[0]) - ccenter_euclid;
+      //if(ch_fitness[i] < threshold) ch_fitness[i] = 10.0;
+    } /* for(i) */
+
+    slt_best     = slt_best_ft(CHILDREN_SIZE, ch_fitness);
+    slt_roulette = rand() % CHILDREN_SIZE;
+
+    if((cnt_generation % 10) == 0) {
+      //printf("%f, %f\n", ccenter_euclid, exp(ccenter_euclid));
+      //printf("%f, %f\n", ccenter_euclid, (double)A2Z - ccenter_euclid);
+      //printf("%f, %f\n", ccenter_euclid, sqrt((double)A2Z) - ccenter_euclid);
+      printf("%f, %f\n", ccenter_euclid, sqrt((double)A2Z * num_datas[0]) - ccenter_euclid);
+      printf("[経過世代数] %5d\n", cnt_generation);
+      printf("[選択された位置と適応度]\n");
+      printf("  %3d, %f\t%3d, %f\n\n",
+          slt_rand[0], pr_fitness[slt_rand[0]],
+          slt_rand[1], pr_fitness[slt_rand[1]]);
+      printf("[子個体適応度, 最良値とランダム値]\n");
+      printf("  %3d, %f\t%3d, %f\n\n",
+          slt_best,     ch_fitness[slt_best],
+          slt_roulette, ch_fitness[slt_roulette]);
+      num_best = slt_best_ft(POPULATION_SIZE, pr_fitness);
+      printf("[親個体集合, 最良適応度] %f\n", pr_fitness[num_best]);
+    }
+    if(f_quit) break; /* Ctrl-C 処理 */
+
+
+    /* 適応度と遺伝子型の複製 */
+    pr_fitness[slt_rand[0]] = ch_fitness[slt_best];
+    pr_fitness[slt_rand[1]] = ch_fitness[slt_roulette];
+    // 特徴抽出
+    gcopy(pr_gtype[slt_rand[0]], ch_gtype[slt_best]);
+    gcopy(pr_gtype[slt_rand[1]], ch_gtype[slt_roulette]);
+    // 分類器
+    gcopy(pr_class[slt_rand[0]], ch_class[slt_best]);
+    gcopy(pr_class[slt_rand[1]], ch_class[slt_roulette]);
+
   } while(++cnt_generation != NUMBER_OF_GENERATION);
 
-  printf("%s[Last Generation] %d%s\n", WHT_STR, cnt_generation, CLR_STR);
 
+  printf("%s[最終世代] %d%s\n", WHT_STR, cnt_generation, CLR_STR);
+  save_ngtype(POPULATION_SIZE, 0, (const genotype *)pr_gtype);
+  save_ngtype(POPULATION_SIZE, 1, (const genotype *)pr_class);
+
+  /* 適応度の最良値を選択 */
+  num_best = slt_best_ft(POPULATION_SIZE, pr_fitness);
+
+  for(cnt_chr = 0; cnt_chr < A2Z; cnt_chr++) {
+    // データの結合
+    cat_double(num_datas[cnt_chr] * NUMBER_OF_GABOR, ncv_data[cnt_chr], f_in_data);
+    // 共通接続荷重による RFCN の局所受容野
+    clEnqueueWriteBuffer(prop.queue, feature.cl_gtype, CL_TRUE,
+        0, sizeof(genotype_t) * MAX_GTYPE_SIZE, (const void *)pr_gtype[num_best],
+        0, NULL, NULL);
+    clEnqueueWriteBuffer(prop.queue, feature.cl_ncv_data, CL_TRUE,
+        0, sizeof(double) * nsize * num_datas[cnt_chr] * NUMBER_OF_GABOR,
+        (const void *)f_in_data, 0, NULL, NULL);
+    clEnqueueNDRangeKernel(prop.queue, prop.feature, 3,
+        NULL, (const size_t *)feature_size, NULL,
+        0, NULL, NULL);
+    // 出力の読み込み
+    clEnqueueReadBuffer(prop.queue, feature.cl_dest, CL_TRUE,
+        0, sizeof(double) * dsize * num_datas[cnt_chr] * NUMBER_OF_GABOR,
+        (void *)f_out_data, 0, NULL, NULL);
+
+    // 出力データの加算 */
+    bzero((void *)f_data, sizeof(double) * dsize * num_datas[0]);
+    sum_data(num_datas[cnt_chr],
+        feature_width, feature_height,
+        f_out_data, f_data);
+
+
+    // 加算出力データのプーリング
+    clEnqueueWriteBuffer(prop.queue, pooling.cl_ncv, CL_TRUE,
+        0, sizeof(double) * dsize * num_datas[cnt_chr],
+        (const void *)f_data, 0, NULL, NULL);
+    clEnqueueNDRangeKernel(prop.queue, prop.pooling, 3,
+        NULL, (const size_t *)pooling_size, NULL,
+        0, NULL, NULL);
+    clEnqueueReadBuffer(prop.queue, pooling.cl_dest, CL_TRUE,
+        0, sizeof(double) * psize * num_datas[cnt_chr],
+        (void *)p_data, 0, NULL, NULL);
+
+    // 三次元空間写像 (分類部)
+    clEnqueueWriteBuffer(prop.queue, cls.cl_gtype,    CL_TRUE,
+        0, sizeof(genotype_t) * MAX_GTYPE_SIZE, (const void *)pr_class[num_best],
+        0, NULL, NULL);
+    clEnqueueWriteBuffer(prop.queue, cls.cl_ncv_data, CL_TRUE,
+        0, sizeof(double) * psize * num_datas[cnt_chr],
+        (const void *)p_data, 0, NULL, NULL);
+    clEnqueueNDRangeKernel(prop.queue, prop.cls, 1,
+        NULL, (const size_t *)&class_size, NULL,
+        0, NULL, NULL);
+    clEnqueueReadBuffer(prop.queue, cls.cl_vector, CL_TRUE,
+        0, sizeof(cls_vector) * num_datas[cnt_chr],
+        (void *)vector[cnt_chr], 0, NULL, NULL);
+  } /* for(cnt_chr) */
+  save_vector(num_best, num_datas, (const cls_vector **)vector);
 
   
   /* 後処理 */

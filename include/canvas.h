@@ -2,7 +2,8 @@
 #define __CANVAS_H
 
 #define A2Z      ('Z' - 'A') + 1
-#define DIV      (10)
+//#define A2Z      5
+#define DIV      (1)
 
 #define CANVAS_X (28)
 #define CANVAS_Y CANVAS_X
